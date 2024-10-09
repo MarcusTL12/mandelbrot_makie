@@ -37,6 +37,8 @@ function mandelgui(::Val{N}) where {N}
     x_lims = Observable(x_lims)
     y_lims = Observable(y_lims)
 
+    color_slider = Slider(f[1, 2], range=1.0:0.1:30.0, horizontal=false)
+
     recompute = Button(f[2, 2][1, 1], label="recompute")
     iter_box = Textbox(f[2, 2][2, 1], placeholder="1000")
 
@@ -46,18 +48,45 @@ function mandelgui(::Val{N}) where {N}
         iterations[] = parse(Int, s)
     end
 
-    img = Observable(make_mandel_image((x_lims[], y_lims[]), resolution,
-        iterations[], Val(N))')
+    img = Observable(copy(make_mandel_image((x_lims[], y_lims[]), resolution,
+        iterations[], Val(N))'))
 
-    image!(ax, x_lims, y_lims, img; interpolate=false)
+    scaled_img = lift(img) do hsv_img
+        img_copy = copy(hsv_img)
+        img_mat = reshape(reinterpret(Float64, img_copy), 3, size(img_copy)...)
+        H = @view img_mat[1, :, :]
+        H .*= color_slider.value[]
+        H .+= 240
+
+        img_copy
+    end
+
+    on(color_slider.value) do x
+        @assert size(img[]) == size(scaled_img[])
+
+        unscaled_img_mat = reshape(reinterpret(Float64, img[]),
+        3, size(img[])...)
+        img_mat = reshape(reinterpret(Float64, scaled_img[]),
+            3, size(scaled_img[])...)
+
+        H = @view img_mat[1, :, :]
+        H .= @view unscaled_img_mat[1, :, :]
+        H .*= x
+        H .+= 240
+
+        scaled_img[] = scaled_img[]
+    end
+
+    image!(ax, x_lims, y_lims, scaled_img; interpolate=false)
 
     on(recompute.clicks) do _
         (x_lims[], y_lims[]), resolution = get_axis_dimensions(ax, Val(N))
 
+        @show (x_lims[], y_lims[])
         @show resolution
 
-        img[] = make_mandel_image((x_lims[], y_lims[]), resolution,
-            iterations[], Val(N))'
+        img[] = copy(make_mandel_image((x_lims[], y_lims[]), resolution,
+            iterations[], Val(N))')
     end
 
     f

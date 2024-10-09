@@ -18,7 +18,6 @@ function counts2HSV(counts, max_n)
 
     H .= counts
     H .*= 60 / 256
-    H .+= 240
 
     for i in eachindex(counts)
         if counts[i] == max_n
